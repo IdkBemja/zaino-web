@@ -1,0 +1,96 @@
+* {
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+
+html, body, main {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+}
+
+.options {
+    height: 100%;
+    color: white;
+    background-color: #12332d;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 30px;
+}
+
+.options h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.options ul {
+    width: 100%;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.options ul li {
+    color: gray;
+    padding-left: 5px;
+    cursor: pointer;
+    border-left: 2px solid gray;
+}
+
+.options ul li.options-active {
+    color: white !important;
+    border-left: 2px solid white !important;
+    font-weight: bold;
+}
+
+.options ul li:hover {
+    color: white;
+    border-left: 2px solid white;
+    font-weight: bold;
+    transition: 0.2s ease-in;
+}
+
+.main-app {
+    width: 100%;
+    background-color: whitesmoke;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 20px;
+}
+
+.top-buttons {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.top-dashboard {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+    justify-content: center;
+}
+
+.card {
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard {
+    display: flex;
+    flex-direction: column;
+}
+
+
+
+
