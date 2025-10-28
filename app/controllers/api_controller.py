@@ -40,7 +40,7 @@ def test_api():
         return jsonify({"error": f"Error de autenticación: {error}"}), 401
     
     # Hacer petición a la API con el token obtenido
-    apiURL = 'https://api2.arduino.cc/iot/v2'
+    apiURL = 'https://api2.arduino.cc/iot/v2/things'
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
@@ -52,6 +52,7 @@ def test_api():
         response = requests.get(apiURL, headers=headers)
         print(f"Status code respuesta: {response.status_code}")
         print(f"Contenido respuesta: {response.text}")
+
         response.raise_for_status()
         return jsonify(response.json()), response.status_code
     except requests.RequestException as e:
@@ -61,16 +62,19 @@ def test_api():
 
 @app.route("/api/weather")
 def get_weather_empty():
-    """Redirecciona a la documentación o instrucciones de uso"""
-    return jsonify({
-        "message": "Por favor, especifica una estación o coordenadas",
-        "endpoints": {
-            "/api/weather/<station_id>": "Obtener datos de una estación específica",
-            "/api/weather/nearest": "Obtener estaciones cercanas (requiere lat, lon, radius)",
-            "/api/weather/profile/<station_id>": "Obtener perfil de una estación",
-            "/api/weather/statistics/<station_id>": "Obtener estadísticas de una estación"
-        }
-    })
+    """Obtiene datos meteorológicos usando la estación por defecto configurada en .env"""
+    from app.utils.weathercloud_py import WeathercloudAPI
+    weather_api = WeathercloudAPI()
+    
+    # Obtener la ID de estación desde las variables de entorno
+    default_station = settings.get('WEATHERCLOUD_DEVICEID')
+    if not default_station:
+        return jsonify({
+            "error": "No se ha configurado una estación por defecto en WEATHER_CLOUD_DEVICEID"
+        }), 400
+        
+    data = weather_api.get_weather(default_station)
+    return jsonify(data)
 
 
 @app.route("/api/weather/<station_id>")

@@ -72,8 +72,8 @@ class WeathercloudAPI:
         # ID de METAR son 4 letras (código OACI)
         if len(id_) == 4 and id_.isalpha():
             return "metar"
-        # ID de dispositivos son números (normalmente 10 dígitos)
-        elif id_.isdigit():
+        # ID de dispositivos son números (normalmente 10 dígitos y inician con 'd')
+        elif id_[0] == "d" and id_[1:].isdigit() and len(id_) >= 11:
             return "device"
         return None
     

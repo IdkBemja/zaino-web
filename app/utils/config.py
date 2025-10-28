@@ -19,6 +19,9 @@ def load_config():
     return {
         "CLIENT_ID": os.getenv("CLIENT_ID"),
         "CLIENT_SECRET": os.getenv("CLIENT_SECRET"),
+        "WEATHERCLOUD_EMAIL": os.getenv("WEATHERCLOUD_EMAIL"),
+        "WEATHERCLOUD_PASSWORD": os.getenv("WEATHERCLOUD_PASSWORD"),
+        "WEATHERCLOUD_DEVICEID": os.getenv("WEATHERCLOUD_DEVICEID"),
         "NUM_VISITAS": visitas['num_visitas']
     }
 
