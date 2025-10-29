@@ -15,13 +15,31 @@ class WeathercloudAPI:
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             "X-Requested-With": "XMLHttpRequest"
         })
-        self.cookie = ""
+        self.cookie = None
         self.email = settings.get('WEATHERCLOUD_EMAIL', '')
         self.password = settings.get('WEATHERCLOUD_PASSWORD', '')
+        self.is_authenticated = False
         
-        if self.email and self.password:
-            self.login(self.email, self.password)
+        if not self.email or not self.password:
+            raise ValueError("WEATHERCLOUD_EMAIL y WEATHERCLOUD_PASSWORD son requeridos en .env")
     
+    def is_authenticated_session(self):
+        """
+        Verifica si la sesión actual está autenticada
+        
+        Returns:
+            bool: True si la sesión está autenticada
+        """
+        if not self.cookie:
+            return False
+            
+        try:
+            # Intenta hacer una petición simple para verificar la sesión
+            response = self.session.get(f"{self.BASE_URL}/profile")
+            return response.status_code == 200
+        except:
+            return False
+
     def login(self, email=None, password=None, store_credentials=True):
         """
         Inicia sesión en Weathercloud
@@ -32,14 +50,14 @@ class WeathercloudAPI:
             store_credentials (bool): Almacenar credenciales para reautenticación
             
         Returns:
-            bool: True si el inicio de sesión fue exitoso
+            dict: {"success": bool, "error": str or None}
         """
         try:
             email = email or self.email
             password = password or self.password
             
             if not email or not password:
-                return {"error": "Credenciales no proporcionadas. Configura WEATHERCLOUD_EMAIL y WEATHERCLOUD_PASSWORD en .env"}
+                return {"success": False, "error": "Credenciales no proporcionadas"}
             
             data = {
                 "entity": email,
@@ -49,15 +67,16 @@ class WeathercloudAPI:
             
             response = self.session.post(f"{self.BASE_URL}/signin", data=data, allow_redirects=False)
             
-            if response.status_code == 302:
+            if response.status_code == 200 or response.status_code == 302:
                 self.cookie = response.cookies.get_dict()
+                self.is_authenticated = True
                 if store_credentials:
                     self.credentials = {"email": email, "password": password}
-                return True
-            return False
+                return {"success": True, "error": None}
+            
+            return {"success": False, "error": "Credenciales inválidas"}
         except Exception as e:
-            print(f"Error en login: {e}")
-            return False
+            return {"success": False, "error": f"Error en login: {str(e)}"}
     
     def check_id(self, id_):
         """
@@ -73,10 +92,23 @@ class WeathercloudAPI:
         if len(id_) == 4 and id_.isalpha():
             return "metar"
         # ID de dispositivos son números (normalmente 10 dígitos y inician con 'd')
-        elif id_[0] == "d" and id_[1:].isdigit() and len(id_) >= 11:
+        elif id_[0] == "d" and id_[1:].isdigit() and len(id_) >= 11 or id_.isdigit() and len(id_) >= 10:
             return "device"
         return None
     
+    def ensure_authenticated(self):
+        """
+        Asegura que la sesión está autenticada, intenta re-autenticar si es necesario
+        
+        Returns:
+            dict: {"success": bool, "error": str or None}
+        """
+        if self.is_authenticated and self.is_authenticated_session():
+            return {"success": True, "error": None}
+            
+        # Intentar login
+        return self.login()
+
     def get_weather(self, id_):
         """
         Obtiene datos meteorológicos actuales
@@ -85,8 +117,13 @@ class WeathercloudAPI:
             id_ (str): ID de la estación o METAR
             
         Returns:
-            dict: Datos meteorológicos
+            dict: Datos meteorológicos o error
         """
+        # Verificar autenticación
+        auth_result = self.ensure_authenticated()
+        if not auth_result["success"]:
+            return {"error": f"Error de autenticación: {auth_result['error']}"}
+            
         try:
             id_type = self.check_id(id_)
             if not id_type:
@@ -116,6 +153,8 @@ class WeathercloudAPI:
                     data["vis"] = data["vis"] * 100
                 
                 return data
+            elif response.status_code == 401:
+                return {"error": "Sesión expirada o no autorizada"}
             return {"error": "Error al obtener datos"}
         except Exception as e:
             return {"error": str(e)}

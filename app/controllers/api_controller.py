@@ -1,11 +1,12 @@
 
 from app import app
-from flask import jsonify, request
+from flask import jsonify, request, make_response
 import requests
 from app.utils import config
+from oauthlib.oauth2 import BackendApplicationClient
+from requests_oauthlib import OAuth2Session
 
 settings = config.load_config()
-
 
 def get_arduino_token():
     """Obtiene un token de acceso para la API de Arduino IoT Cloud"""
@@ -15,56 +16,94 @@ def get_arduino_token():
     if not client_id or not client_secret:
         return None, "CLIENT_ID o CLIENT_SECRET no configurados"
     
-    token_url = 'https://api2.arduino.cc/iot/v1/clients/token'
-    data = {
-        'grant_type': 'client_credentials',
-        'client_id': client_id,
-        'client_secret': client_secret,
-        'audience': 'https://api2.arduino.cc/iot'
-    }
+    token_url = "https://api2.arduino.cc/iot/v1/clients/token"
     
     try:
-        response = requests.post(token_url, data=data)
-        response.raise_for_status()
-        return response.json().get('access_token'), None
-    except requests.RequestException as e:
-        return None, str(e)
+        # Configurar el cliente OAuth2
+        oauth_client = BackendApplicationClient(client_id=client_id)
+        oauth = OAuth2Session(client=oauth_client)
+        
+        # Obtener el token
+        token = oauth.fetch_token(
+            token_url=token_url,
+            client_id=client_id,
+            client_secret=client_secret,
+            include_client_id=True,
+            audience="https://api2.arduino.cc/iot"
+        )
+        # Obtener el access token
+        access_token = token.get("access_token")
+        
+        if not access_token:
+            return None, "No se encontró access_token en la respuesta"
+        
+        return access_token, None
+        
+    except Exception as e:
+        return None, f"Error de autenticación: {str(e)}"
 
 
-@app.route("/api/test-api")
+@app.route("/api/test-api", methods=['GET'])
 def test_api():
-    # Obtener token de autenticación
-    access_token, error = get_arduino_token()
-    
-    if error:
-        return jsonify({"error": f"Error de autenticación: {error}"}), 401
-    
-    # Hacer petición a la API con el token obtenido
-    apiURL = 'https://api2.arduino.cc/iot/v2/things'
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-    
+    """Endpoint para probar la conexión con la API de Arduino IoT Cloud"""
     try:
-        # Puedes cambiar esto por un endpoint específico que necesites
-        # Por ejemplo: apiURL + '/dashboards' para listar los dashboards
-        response = requests.get(apiURL, headers=headers)
-        print(f"Status code respuesta: {response.status_code}")
-        print(f"Contenido respuesta: {response.text}")
+        access_token, error = get_arduino_token()
 
-        response.raise_for_status()
-        return jsonify(response.json()), response.status_code
-    except requests.RequestException as e:
-        print(f"Error en la petición: {e}")
-        return jsonify({"error": str(e)}), response.status_code if hasattr(e, 'response') and e.response else 500
-    
+        if error:
+            return jsonify({
+                "error": "Error de autenticación",
+                "details": error,
+                "config_status": {
+                    "client_id_present": bool(settings.get('CLIENT_ID')),
+                    "client_secret_present": bool(settings.get('CLIENT_SECRET'))
+                }
+            }), 401
+        
+        api_url = "https://api2.arduino.cc/iot/v2/things"
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json'
+        }
+
+        try:
+            # Hacer la petición GET directamente
+            response = requests.get(api_url, headers=headers)
+            
+            if response.status_code == 200:
+                things_data = response.json()
+                print(f"Consulta exitosa - {len(things_data)} things encontrados")
+                print(things_data)
+
+                return jsonify({
+                    "success": True,
+                    "message": "Conexión exitosa con Arduino IoT API",
+                    "data": things_data
+                }), 200
+            else:
+                return jsonify({
+                    "error": "Error en la API de Arduino",
+                    "status_code": response.status_code,
+                    "details": response.text
+                }), response.status_code
+
+        except requests.exceptions.RequestException as e:
+            return jsonify({
+                "error": "Error en la petición HTTP",
+                "details": str(e)
+            }), 500
+
+    except Exception as e:
+        print(f"\nError inesperado: {e}")
+        return jsonify({
+            "error": "Error inesperado",
+            "details": str(e)
+        }), 500
+
 
 @app.route("/api/weather")
 def get_weather_empty():
     """Obtiene datos meteorológicos usando la estación por defecto configurada en .env"""
     from app.utils.weathercloud_py import WeathercloudAPI
-    weather_api = WeathercloudAPI()
     
     # Obtener la ID de estación desde las variables de entorno
     default_station = settings.get('WEATHERCLOUD_DEVICEID')
@@ -73,7 +112,20 @@ def get_weather_empty():
             "error": "No se ha configurado una estación por defecto en WEATHER_CLOUD_DEVICEID"
         }), 400
         
+    try:
+        weather_api = WeathercloudAPI()
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 401
+        
     data = weather_api.get_weather(default_station)
+
+    if "error" in data:
+        if "autenticación" in data["error"].lower():
+            return jsonify(data), 401
+        elif "ID inválido" in data["error"]:
+            return jsonify(data), 400
+        return jsonify(data), 500
+        
     return jsonify(data)
 
 

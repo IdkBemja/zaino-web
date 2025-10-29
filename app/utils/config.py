@@ -4,8 +4,9 @@ from filelock import FileLock
 from dotenv import load_dotenv
 
 def load_config():
-    load_dotenv()
 
+    load_dotenv()
+    # Manejar el contador de visitas
     visitas_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../visitas.json')
     visitas_path = os.path.normpath(visitas_path)
 
@@ -16,7 +17,7 @@ def load_config():
     with open(visitas_path, 'r') as f:
         visitas = json.load(f)
 
-    return {
+    config = {
         "CLIENT_ID": os.getenv("CLIENT_ID"),
         "CLIENT_SECRET": os.getenv("CLIENT_SECRET"),
         "WEATHERCLOUD_EMAIL": os.getenv("WEATHERCLOUD_EMAIL"),
@@ -24,6 +25,8 @@ def load_config():
         "WEATHERCLOUD_DEVICEID": os.getenv("WEATHERCLOUD_DEVICEID"),
         "NUM_VISITAS": visitas['num_visitas']
     }
+    
+    return config
 
 
 def incrementar_visitas():
