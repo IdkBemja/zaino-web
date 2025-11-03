@@ -277,21 +277,49 @@ La aplicación estará disponible en: `http://localhost:5000`
 🔗 **Producción**: [https://example.com](https://example.com)  
 🔗 **Demo**: [https://demo.example.com](https://demo.example.com)
 
-*Nota: Actualiza estas URLs con tu dominio real cuando despliegues la aplicación.*
-
 ### Despliegue en Producción
 
-Para desplegar en producción, considera:
+#### Usando Docker 🐳
 
-1. **Configurar variables de entorno** en tu servidor
-2. **Usar un servidor WSGI** como Gunicorn:
-   ```bash
-   pip install gunicorn
-   gunicorn -w 4 -b 0.0.0.0:8000 app:app
-   ```
-3. **Configurar HTTPS** con Let's Encrypt
-4. **Usar un proxy reverso** como Nginx
-5. **Configurar CORS** según tus necesidades
+**1. Crear archivo `Dockerfile`**
+```dockerfile
+# Use official Python base image
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install curl
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files
+COPY requirements.txt ./
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application
+COPY . .
+
+# Expose port
+EXPOSE 5000
+
+# Command to run the app
+CMD ["python", "app.py"]
+```
+#### Flask nativo (Solo desarrollo/pruebas)
+
+> **⚠️ ADVERTENCIA**: Flask nativo NO es recomendado para producción. Usa Docker en su lugar.
+
+**Ejecución directa**
+```bash
+# Configurar modo producción
+export FLASK_ENV=production  # Linux/Mac
+$env:FLASK_ENV="production"  # Windows PowerShell
+
+# Ejecutar
+python app.py
+```
 
 ---
 
