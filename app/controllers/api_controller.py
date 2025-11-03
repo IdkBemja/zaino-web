@@ -271,3 +271,246 @@ def add_visitas():
     """Añade una visita"""
     num_visitas = config.incrementar_visitas()
     return jsonify({"num_visitas": num_visitas})
+
+
+@app.route("/api/informes", methods=['GET'])
+def get_informes():
+    """Obtiene la lista de informes disponibles"""
+    import os
+    from datetime import datetime
+    
+    # Crear directorio de informes si no existe
+    informes_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../informes')
+    informes_dir = os.path.normpath(informes_dir)
+    
+    if not os.path.exists(informes_dir):
+        os.makedirs(informes_dir)
+    
+    # Listar archivos de informes
+    informes = []
+    for filename in os.listdir(informes_dir):
+        if filename.endswith('.json'):
+            filepath = os.path.join(informes_dir, filename)
+            # Obtener información del archivo
+            file_stat = os.stat(filepath)
+            file_time = datetime.fromtimestamp(file_stat.st_mtime)
+            
+            # Leer el contenido del informe
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    import json
+                    informe_data = json.load(f)
+                    
+                informes.append({
+                    'id': filename.replace('.json', ''),
+                    'nombre': informe_data.get('nombre', filename),
+                    'fecha': file_time.strftime('%d/%m/%Y'),
+                    'fecha_completa': file_time.strftime('%d/%m/%Y %H:%M'),
+                    'periodo': informe_data.get('periodo', 'N/A'),
+                    'datos': informe_data
+                })
+            except:
+                continue
+    
+    # Ordenar por fecha (más reciente primero)
+    informes.sort(key=lambda x: x['fecha_completa'], reverse=True)
+    
+    return jsonify({
+        "success": True,
+        "informes": informes
+    })
+
+
+@app.route("/api/informes/generar", methods=['POST'])
+def generar_informe():
+    """Genera un nuevo informe de caudal - SOLO MENSUAL"""
+    import os
+    import json
+    from datetime import datetime, timedelta
+    import calendar
+    
+    try:
+        # Crear directorio de informes si no existe
+        informes_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../informes')
+        informes_dir = os.path.normpath(informes_dir)
+        
+        if not os.path.exists(informes_dir):
+            os.makedirs(informes_dir)
+        
+        # VALIDAR: Verificar si ya existe un informe del mes actual
+        fecha_actual = datetime.now()
+        mes_actual = fecha_actual.month
+        anio_actual = fecha_actual.year
+        
+        # Buscar informes existentes del mes actual
+        for filename in os.listdir(informes_dir):
+            if filename.endswith('.json'):
+                try:
+                    filepath = os.path.join(informes_dir, filename)
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        informe_existente = json.load(f)
+                    
+                    # Extraer fecha de generación del informe existente
+                    fecha_gen_str = informe_existente.get('fecha_generacion', '')
+                    if fecha_gen_str:
+                        # Parsear fecha: "03/11/2025 02:14:51"
+                        fecha_gen = datetime.strptime(fecha_gen_str, '%d/%m/%Y %H:%M:%S')
+                        
+                        # Verificar si es del mismo mes y año
+                        if fecha_gen.month == mes_actual and fecha_gen.year == anio_actual:
+                            # Calcular días transcurridos desde el informe
+                            dias_transcurridos = (fecha_actual - fecha_gen).days
+                            
+                            # Obtener días del mes actual
+                            dias_en_mes = calendar.monthrange(anio_actual, mes_actual)[1]
+                            
+                            # Si no han pasado los días del mes, no permitir generar
+                            if dias_transcurridos < dias_en_mes:
+                                return jsonify({
+                                    "success": False,
+                                    "error": f"Ya existe un informe del mes actual generado el {fecha_gen.strftime('%d/%m/%Y')}. Debe esperar {dias_en_mes - dias_transcurridos} días más para generar un nuevo informe mensual.",
+                                    "dias_restantes": dias_en_mes - dias_transcurridos,
+                                    "informe_existente": {
+                                        'id': filename.replace('.json', ''),
+                                        'fecha': fecha_gen.strftime('%d/%m/%Y'),
+                                        'nombre': informe_existente.get('nombre', '')
+                                    }
+                                }), 400
+                except Exception as e:
+                    print(f"Error al verificar informe {filename}: {e}")
+                    continue
+        
+        # Obtener datos del flujómetro
+        flowmeter_data = None
+        if flowmeter_cache['data']:
+            flowmeter_data = flowmeter_cache['data']
+        else:
+            # Intentar obtener datos frescos
+            access_token, error = get_arduino_token()
+            if not error:
+                # Simplificado: usar datos en caché o simulados
+                flowmeter_data = {
+                    'instflow': {'value': 0},
+                    'constflow': {'value': 0}
+                }
+        
+        # Solo permitir informes mensuales
+        periodo_nombre = "Último Mes"
+        fecha_fin = datetime.now()
+        # Calcular el primer día del mes anterior
+        if fecha_fin.month == 1:
+            fecha_inicio = datetime(fecha_fin.year - 1, 12, 1)
+        else:
+            fecha_inicio = datetime(fecha_fin.year, fecha_fin.month - 1, 1)
+        
+        # Calcular días del período para promedios
+        dias_periodo = (fecha_fin - fecha_inicio).days
+        
+        # Calcular días del período para promedios
+        dias_periodo = (fecha_fin - fecha_inicio).days
+        
+        # Crear estructura del informe
+        informe = {
+            'nombre': f'Informe de Caudal - {periodo_nombre}',
+            'fecha_generacion': fecha_fin.strftime('%d/%m/%Y %H:%M:%S'),
+            'periodo': periodo_nombre,
+            'fecha_inicio': fecha_inicio.strftime('%d/%m/%Y'),
+            'fecha_fin': fecha_fin.strftime('%d/%m/%Y'),
+            'mes_anio': f"{fecha_fin.month}/{fecha_fin.year}",  # Para validaciones futuras
+            'datos': {
+                'flujo_instantaneo': flowmeter_data.get('constflow', {}).get('value', 0) if flowmeter_data else 0,
+                'flujo_acumulado': flowmeter_data.get('instflow', {}).get('value', 0) if flowmeter_data else 0,
+                'promedio_diario': (flowmeter_data.get('instflow', {}).get('value', 0) / dias_periodo) if flowmeter_data and dias_periodo > 0 else 0,
+            },
+            'estadisticas': {
+                'total_litros': flowmeter_data.get('instflow', {}).get('value', 0) if flowmeter_data else 0,
+                'promedio_lmin': flowmeter_data.get('constflow', {}).get('value', 0) if flowmeter_data else 0,
+            }
+        }
+        
+        # Guardar informe
+        filename = f"informe_{fecha_fin.strftime('%Y%m%d_%H%M%S')}.json"
+        filepath = os.path.join(informes_dir, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(informe, f, indent=2, ensure_ascii=False)
+        
+        return jsonify({
+            "success": True,
+            "message": "Informe generado exitosamente",
+            "informe": {
+                'id': filename.replace('.json', ''),
+                'nombre': informe['nombre'],
+                'fecha': fecha_fin.strftime('%d/%m/%Y'),
+                'periodo': periodo_nombre
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error al generar informe: {e}")
+        return jsonify({
+            "error": "Error al generar informe",
+            "details": str(e)
+        }), 500
+
+
+@app.route("/api/informes/<informe_id>", methods=['GET'])
+def get_informe(informe_id):
+    """Obtiene un informe específico"""
+    import os
+    import json
+    
+    try:
+        informes_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../informes')
+        informes_dir = os.path.normpath(informes_dir)
+        
+        filepath = os.path.join(informes_dir, f"{informe_id}.json")
+        
+        if not os.path.exists(filepath):
+            return jsonify({
+                "error": "Informe no encontrado"
+            }), 404
+        
+        with open(filepath, 'r', encoding='utf-8') as f:
+            informe = json.load(f)
+        
+        return jsonify({
+            "success": True,
+            "informe": informe
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "error": "Error al obtener informe",
+            "details": str(e)
+        }), 500
+
+
+@app.route("/api/informes/<informe_id>", methods=['DELETE'])
+def delete_informe(informe_id):
+    """Elimina un informe"""
+    import os
+    
+    try:
+        informes_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../informes')
+        informes_dir = os.path.normpath(informes_dir)
+        
+        filepath = os.path.join(informes_dir, f"{informe_id}.json")
+        
+        if not os.path.exists(filepath):
+            return jsonify({
+                "error": "Informe no encontrado"
+            }), 404
+        
+        os.remove(filepath)
+        
+        return jsonify({
+            "success": True,
+            "message": "Informe eliminado exitosamente"
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "error": "Error al eliminar informe",
+            "details": str(e)
+        }), 500

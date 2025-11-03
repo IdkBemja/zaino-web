@@ -178,66 +178,856 @@ async function initializeHomeView() {
 
 // Inicializar vista de informes
 async function initializeReportsView() {
-    // Simular carga de informes
     const informesList = document.getElementById('informes-list');
     
-    // Aquí podrías hacer un fetch real a tu API
-    const mockInformes = [
-        { nombre: 'Informe de Caudal - Octubre 2025', fecha: '28/10/2025' },
-        { nombre: 'Informe de Caudal - Septiembre 2025', fecha: '30/09/2025' },
-        { nombre: 'Informe de Caudal - Agosto 2025', fecha: '31/08/2025' }
-    ];
-    
-    // Detectar si es móvil
-    const isMobile = window.innerWidth <= 768;
-    
-    if (isMobile) {
-        // Vista de cards para móvil
-        const informesHTML = mockInformes.map((informe, index) => `
-            <div class="informe-card" data-index="${index}">
-                <div class="informe-header">
-                    <div class="informe-icon">
-                        <i class="bi bi-file-earmark-text-fill"></i>
-                    </div>
-                    <div class="informe-info">
-                        <h4>${informe.nombre}</h4>
-                        <p><i class="bi bi-calendar3"></i> ${informe.fecha}</p>
-                    </div>
-                </div>
-                <div class="informe-actions">
-                    <button class="btn btn-sm btn-primary btn-block">
-                        <i class="bi bi-download"></i> Descargar
-                    </button>
-                    <button class="btn btn-sm btn-secondary btn-block">
-                        <i class="bi bi-eye"></i> Ver
-                    </button>
-                </div>
-            </div>
-        `).join('');
+    try {
+        // Cargar informes desde la API
+        const response = await fetch('/api/informes');
+        const data = await response.json();
         
-        // Cambiar el contenedor a vista de cards
-        informesList.parentElement.parentElement.classList.remove('table-responsive');
-        informesList.parentElement.parentElement.classList.add('informes-grid');
-        informesList.parentElement.parentElement.innerHTML = informesHTML;
-    } else {
-        // Vista de tabla para desktop
-        const informesHTML = mockInformes.map(informe => `
+        const informes = data.success ? data.informes : [];
+        
+        // Detectar si es móvil
+        const isMobile = window.innerWidth <= 768;
+        
+        if (isMobile) {
+            // Vista de cards para móvil
+            if (informes.length === 0) {
+                informesList.parentElement.parentElement.innerHTML = `
+                    <div class="text-center p-4">
+                        <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                        <p class="text-muted mt-3">No hay informes disponibles</p>
+                        <button class="btn btn-primary" onclick="showGenerateReportModal()">
+                            <i class="bi bi-plus-circle"></i> Generar Informe
+                        </button>
+                    </div>
+                `;
+            } else {
+                const informesHTML = informes.map((informe, index) => `
+                    <div class="informe-card" data-id="${informe.id}">
+                        <div class="informe-header">
+                            <div class="informe-icon">
+                                <i class="bi bi-file-earmark-text-fill"></i>
+                            </div>
+                            <div class="informe-info">
+                                <h4>${informe.nombre}</h4>
+                                <p><i class="bi bi-calendar3"></i> ${informe.fecha}</p>
+                                <small class="text-muted">${informe.periodo}</small>
+                            </div>
+                        </div>
+                        <div class="informe-actions">
+                            <button class="btn btn-sm btn-danger btn-block mb-2" onclick="exportReportToPDFDirect('${informe.id}')">
+                                <i class="bi bi-file-pdf"></i> Exportar PDF
+                            </button>
+                            <button class="btn btn-sm btn-primary btn-block" onclick="downloadReport('${informe.id}')">
+                                <i class="bi bi-download"></i> JSON
+                            </button>
+                            <button class="btn btn-sm btn-secondary btn-block" onclick="viewReport('${informe.id}')">
+                                <i class="bi bi-eye"></i> Ver
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+                // Cambiar el contenedor a vista de cards
+                informesList.parentElement.parentElement.classList.remove('table-responsive');
+                informesList.parentElement.parentElement.classList.add('informes-grid');
+                informesList.parentElement.parentElement.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">${informes.length} informe(s)</h5>
+                        <button class="btn btn-sm btn-success" onclick="showGenerateReportModal()">
+                            <i class="bi bi-plus-circle"></i> Generar
+                        </button>
+                    </div>
+                    ${informesHTML}
+                `;
+            }
+        } else {
+            // Vista de tabla para desktop
+            if (informes.length === 0) {
+                informesList.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="text-center p-4">
+                            <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                            <p class="text-muted mt-3">No hay informes disponibles</p>
+                            <button class="btn btn-primary" onclick="showGenerateReportModal()">
+                                <i class="bi bi-plus-circle"></i> Generar Informe
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                const informesHTML = informes.map(informe => `
+                    <tr data-id="${informe.id}">
+                        <td>
+                            ${informe.nombre}
+                            <br><small class="text-muted">${informe.periodo}</small>
+                        </td>
+                        <td>${informe.fecha}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-danger me-2" onclick="exportReportToPDFDirect('${informe.id}')">
+                                <i class="bi bi-file-pdf"></i> PDF
+                            </button>
+                            <button class="btn btn-sm btn-primary me-2" onclick="downloadReport('${informe.id}')">
+                                <i class="bi bi-download"></i> JSON
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="viewReport('${informe.id}')">
+                                <i class="bi bi-eye"></i> Ver
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+                
+                // Agregar botón de generar en el header
+                const dashboardTitle = document.querySelector('#dashboard-informes .dashboard-title');
+                if (dashboardTitle && !document.getElementById('btn-generar-informe')) {
+                    dashboardTitle.insertAdjacentHTML('afterend', `
+                        <div class="d-flex justify-content-end mb-3">
+                            <button id="btn-generar-informe" class="btn btn-success" onclick="showGenerateReportModal()">
+                                <i class="bi bi-plus-circle"></i> Generar Nuevo Informe
+                            </button>
+                        </div>
+                    `);
+                }
+                
+                informesList.innerHTML = informesHTML;
+            }
+        }
+    } catch (error) {
+        console.error('Error al cargar informes:', error);
+        informesList.innerHTML = `
             <tr>
-                <td>${informe.nombre}</td>
-                <td>${informe.fecha}</td>
-                <td class="text-end">
-                    <button class="btn btn-sm btn-primary me-2">
-                        <i class="bi bi-download"></i> Descargar
-                    </button>
-                    <button class="btn btn-sm btn-secondary">
-                        <i class="bi bi-eye"></i> Ver
-                    </button>
+                <td colspan="3" class="text-center text-danger p-4">
+                    <i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i>
+                    <p class="mt-3">Error al cargar informes</p>
                 </td>
             </tr>
-        `).join('');
-        
-        informesList.innerHTML = informesHTML;
+        `;
     }
+}
+
+// Función para mostrar el modal de generación de informes
+function showGenerateReportModal() {
+    // Crear el modal si no existe
+    if (!document.getElementById('generateReportModal')) {
+        const modalHTML = `
+            <div class="modal fade" id="generateReportModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Generar Nuevo Informe Mensual</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 
+                                Se generará un informe del último mes. Solo se permite un informe por mes.
+                            </div>
+                            <p class="text-muted mb-0">
+                                <small>El informe incluirá datos de caudal, estadísticas y análisis del período mensual.</small>
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" id="btnGenerarInforme" class="btn btn-primary" onclick="generateReport()">
+                                <i class="bi bi-gear-fill"></i> Generar Informe
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+    }
+    
+    // Resetear el botón por si acaso
+    const btnGenerar = document.getElementById('btnGenerarInforme');
+    if (btnGenerar) {
+        btnGenerar.innerHTML = '<i class="bi bi-gear-fill"></i> Generar Informe';
+        btnGenerar.disabled = false;
+    }
+    
+    // Mostrar el modal
+    const modal = new bootstrap.Modal(document.getElementById('generateReportModal'));
+    modal.show();
+}
+
+// Función para generar un informe
+async function generateReport() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('generateReportModal'));
+    const btn = document.getElementById('btnGenerarInforme');
+    const btnClose = document.querySelector('#generateReportModal .btn-close');
+    const btnCancel = document.querySelector('#generateReportModal .btn-secondary');
+    
+    try {
+        // Mostrar indicador de carga
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generando informe, por favor espere...';
+        btn.disabled = true;
+        btnClose.disabled = true;
+        btnCancel.disabled = true;
+        
+        // Mostrar toast de inicio
+        showToast('Generando informe mensual...', 'info');
+        
+        const response = await fetch('/api/informes/generar', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ periodo: 'ultimo_mes' })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Cerrar modal
+            modal.hide();
+            
+            // Mostrar mensaje de éxito con animación
+            showToast('✅ ¡Informe generado exitosamente!', 'success');
+            
+            // Esperar un momento para que se cierre el modal
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Recargar la lista de informes para mostrar el nuevo
+            await initializeReportsView();
+            
+            // Mensaje adicional
+            showToast(`📊 ${data.informe.nombre} está disponible`, 'info');
+        } else {
+            // Error de validación (ya existe un informe del mes)
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+            btnClose.disabled = false;
+            btnCancel.disabled = false;
+            
+            // Mostrar mensaje de error detallado
+            const errorMsg = data.error || 'Error al generar informe';
+            
+            if (data.dias_restantes) {
+                // Mostrar modal con información del informe existente
+                modal.hide();
+                showErrorModal(
+                    '⚠️ Informe ya disponible',
+                    errorMsg,
+                    data.informe_existente
+                );
+            } else {
+                showToast(errorMsg, 'error');
+            }
+        }
+    } catch (error) {
+        console.error('Error al generar informe:', error);
+        
+        // Restaurar botón
+        btn.innerHTML = '<i class="bi bi-gear-fill"></i> Generar Informe';
+        btn.disabled = false;
+        btnClose.disabled = false;
+        btnCancel.disabled = false;
+        
+        showToast('❌ Error al conectar con el servidor', 'error');
+    }
+}
+
+// Función para descargar un informe
+async function downloadReport(informeId) {
+    try {
+        // Mostrar toast de inicio
+        showToast('📥 Descargando informe...', 'info');
+        
+        const response = await fetch(`/api/informes/${informeId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            // Crear un blob con los datos del informe
+            const blob = new Blob([JSON.stringify(data.informe, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${informeId}.json`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showToast('✅ Informe descargado exitosamente', 'success');
+        } else {
+            showToast('❌ Error al descargar informe', 'error');
+        }
+    } catch (error) {
+        console.error('Error al descargar informe:', error);
+        showToast('❌ Error al conectar con el servidor', 'error');
+    }
+}
+
+// Función para ver un informe
+async function viewReport(informeId) {
+    try {
+        // Mostrar toast de carga
+        showToast('📄 Cargando informe...', 'info');
+        
+        const response = await fetch(`/api/informes/${informeId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            // Crear modal para mostrar el informe
+            if (!document.getElementById('viewReportModal')) {
+                const modalHTML = `
+                    <div class="modal fade" id="viewReportModal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header bg-primary text-white">
+                                    <h5 class="modal-title" id="viewReportTitle">
+                                        <i class="bi bi-file-earmark-text"></i>
+                                        <span id="viewReportTitleText"></span>
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body" id="viewReportBody" style="max-height: 70vh; overflow-y: auto;">
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                        <i class="bi bi-x-circle"></i> Cerrar
+                                    </button>
+                                    <button type="button" class="btn btn-danger" id="btnExportarPDF">
+                                        <i class="bi bi-file-pdf"></i> Exportar a PDF
+                                    </button>
+                                    <button type="button" class="btn btn-success" id="btnDescargarInforme">
+                                        <i class="bi bi-download"></i> Descargar JSON
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+            }
+            
+            const informe = data.informe;
+            const modalTitle = document.getElementById('viewReportTitleText');
+            const modalBody = document.getElementById('viewReportBody');
+            
+            modalTitle.textContent = informe.nombre;
+            modalBody.innerHTML = `
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-primary">
+                            <div class="card-body">
+                                <h6 class="card-title text-primary">
+                                    <i class="bi bi-calendar-check"></i> Fecha de Generación
+                                </h6>
+                                <p class="card-text fs-5 mb-0">${informe.fecha_generacion}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-info">
+                            <div class="card-body">
+                                <h6 class="card-title text-info">
+                                    <i class="bi bi-calendar-range"></i> Período
+                                </h6>
+                                <p class="card-text fs-5 mb-0">${informe.periodo}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-success">
+                            <div class="card-body">
+                                <h6 class="card-title text-success">
+                                    <i class="bi bi-calendar3"></i> Fecha Inicio
+                                </h6>
+                                <p class="card-text fs-5 mb-0">${informe.fecha_inicio}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-danger">
+                            <div class="card-body">
+                                <h6 class="card-title text-danger">
+                                    <i class="bi bi-calendar3"></i> Fecha Fin
+                                </h6>
+                                <p class="card-text fs-5 mb-0">${informe.fecha_fin}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <h5 class="mb-3">
+                    <i class="bi bi-droplet-fill text-primary"></i> Datos del Flujómetro
+                </h5>
+                <div class="row mt-3">
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-light border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <div class="mb-2">
+                                    <i class="bi bi-speedometer2" style="font-size: 2rem; color: #17a2b8;"></i>
+                                </div>
+                                <h6 class="card-title text-muted">Flujo Instantáneo</h6>
+                                <h3 class="text-primary mb-0">${informe.datos.flujo_instantaneo.toFixed(2)}</h3>
+                                <small class="text-muted">L/min</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-light border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <div class="mb-2">
+                                    <i class="bi bi-droplet-fill" style="font-size: 2rem; color: #28a745;"></i>
+                                </div>
+                                <h6 class="card-title text-muted">Flujo Acumulado</h6>
+                                <h3 class="text-success mb-0">${informe.datos.flujo_acumulado.toFixed(2)}</h3>
+                                <small class="text-muted">Litros</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-light border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <div class="mb-2">
+                                    <i class="bi bi-graph-up-arrow" style="font-size: 2rem; color: #ffc107;"></i>
+                                </div>
+                                <h6 class="card-title text-muted">Promedio Diario</h6>
+                                <h3 class="text-warning mb-0">${informe.datos.promedio_diario.toFixed(2)}</h3>
+                                <small class="text-muted">Litros/día</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <h5 class="mb-3">
+                    <i class="bi bi-bar-chart-fill text-success"></i> Estadísticas
+                </h5>
+                <div class="row mt-3">
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-light border-0 shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-shrink-0">
+                                        <i class="bi bi-bucket-fill" style="font-size: 2.5rem; color: #007bff;"></i>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <h6 class="card-title text-muted mb-1">Total de Litros</h6>
+                                        <h4 class="text-primary mb-0">${informe.estadisticas.total_litros.toFixed(2)} L</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-light border-0 shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-shrink-0">
+                                        <i class="bi bi-clock-history" style="font-size: 2.5rem; color: #28a745;"></i>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <h6 class="card-title text-muted mb-1">Promedio L/min</h6>
+                                        <h4 class="text-success mb-0">${informe.estadisticas.promedio_lmin.toFixed(2)} L/min</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Actualizar el botón de descarga con el ID correcto
+            const btnDescargar = document.getElementById('btnDescargarInforme');
+            btnDescargar.onclick = function() {
+                downloadReport(informeId);
+            };
+            
+            // Actualizar el botón de exportar a PDF
+            const btnExportarPDF = document.getElementById('btnExportarPDF');
+            btnExportarPDF.onclick = function() {
+                exportReportToPDF(informeId, informe);
+            };
+            
+            // Mostrar el modal
+            const modal = new bootstrap.Modal(document.getElementById('viewReportModal'));
+            modal.show();
+        } else {
+            showToast('❌ Error al cargar informe', 'error');
+        }
+    } catch (error) {
+        console.error('Error al ver informe:', error);
+        showToast('❌ Error al conectar con el servidor', 'error');
+    }
+}
+
+// Función para exportar un informe a PDF
+async function exportReportToPDF(informeId, informeData) {
+    try {
+        const btn = document.getElementById('btnExportarPDF');
+        const originalHTML = btn.innerHTML;
+        
+        // Mostrar indicador de carga
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generando PDF...';
+        btn.disabled = true;
+        
+        showToast('📄 Generando PDF, por favor espere...', 'info');
+        
+        // Obtener el contenido del modal
+        const modalBody = document.getElementById('viewReportBody');
+        const modalTitle = document.getElementById('viewReportTitleText').textContent;
+        
+        // Crear un contenedor temporal con el contenido formateado para PDF
+        const tempContainer = document.createElement('div');
+        tempContainer.style.position = 'absolute';
+        tempContainer.style.left = '-9999px';
+        tempContainer.style.width = '210mm'; // Ancho A4
+        tempContainer.style.padding = '20mm';
+        tempContainer.style.backgroundColor = 'white';
+        tempContainer.style.fontFamily = 'Arial, sans-serif';
+        
+        // Clonar el contenido y agregar header
+        tempContainer.innerHTML = `
+            <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #007bff; padding-bottom: 20px;">
+                <h1 style="color: #007bff; margin-bottom: 10px; font-size: 28px;">
+                    <i class="bi bi-droplet-fill"></i> ZAINO WEB
+                </h1>
+                <h2 style="color: #333; font-size: 22px; margin-bottom: 5px;">${modalTitle}</h2>
+                <p style="color: #666; font-size: 12px;">Generado el ${new Date().toLocaleDateString('es-ES', { 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })}</p>
+            </div>
+            ${modalBody.innerHTML}
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #e9ecef; text-align: center; font-size: 11px; color: #6c757d;">
+                <p style="margin: 5px 0;">Zaino Web - Sistema de Monitoreo de Caudal</p>
+                <p style="margin: 5px 0;">Instituto Profesional AIEP</p>
+                <p style="margin: 5px 0;">© ${new Date().getFullYear()} - Documento generado automáticamente</p>
+            </div>
+        `;
+        
+        document.body.appendChild(tempContainer);
+        
+        // Configurar html2canvas
+        const canvas = await html2canvas(tempContainer, {
+            scale: 2, // Mayor calidad
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff'
+        });
+        
+        // Eliminar el contenedor temporal
+        document.body.removeChild(tempContainer);
+        
+        // Crear PDF con jsPDF
+        const { jsPDF } = window.jspdf;
+        const imgData = canvas.toDataURL('image/png');
+        
+        // Calcular dimensiones
+        const imgWidth = 210; // A4 width in mm
+        const pageHeight = 297; // A4 height in mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        let heightLeft = imgHeight;
+        let position = 0;
+        
+        // Agregar la primera página
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        
+        // Si el contenido es más largo que una página, agregar páginas adicionales
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+        
+        // Guardar el PDF
+        const filename = `${informeId}.pdf`;
+        pdf.save(filename);
+        
+        // Restaurar botón
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+        
+        showToast('✅ PDF exportado exitosamente', 'success');
+        
+    } catch (error) {
+        console.error('Error al exportar PDF:', error);
+        
+        // Restaurar botón
+        const btn = document.getElementById('btnExportarPDF');
+        if (btn) {
+            btn.innerHTML = '<i class="bi bi-file-pdf"></i> Exportar a PDF';
+            btn.disabled = false;
+        }
+        
+        showToast('❌ Error al generar PDF. Intente nuevamente.', 'error');
+    }
+}
+
+// Función para exportar directamente a PDF sin abrir el modal
+async function exportReportToPDFDirect(informeId) {
+    try {
+        showToast('📄 Cargando informe para exportar...', 'info');
+        
+        // Obtener los datos del informe
+        const response = await fetch(`/api/informes/${informeId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const informe = data.informe;
+            
+            showToast('📄 Generando PDF, por favor espere...', 'info');
+            
+            // Crear contenedor temporal con el mismo formato que el modal
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.width = '210mm';
+            tempContainer.style.padding = '20mm';
+            tempContainer.style.backgroundColor = 'white';
+            tempContainer.style.fontFamily = 'Arial, sans-serif';
+            
+            tempContainer.innerHTML = `
+                <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #007bff; padding-bottom: 20px;">
+                    <h1 style="color: #007bff; margin-bottom: 10px; font-size: 28px;">
+                        💧 ZAINO WEB
+                    </h1>
+                    <h2 style="color: #333; font-size: 22px; margin-bottom: 5px;">${informe.nombre}</h2>
+                    <p style="color: #666; font-size: 12px;">Generado el ${new Date().toLocaleDateString('es-ES', { 
+                        day: '2-digit', 
+                        month: '2-digit', 
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    })}</p>
+                </div>
+                
+                <div style="margin-bottom: 30px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div style="border: 2px solid #007bff; border-radius: 8px; padding: 15px; background: #f8f9fa;">
+                            <h6 style="color: #007bff; font-size: 14px; margin-bottom: 8px;">📅 Fecha de Generación</h6>
+                            <p style="font-size: 16px; margin: 0;">${informe.fecha_generacion}</p>
+                        </div>
+                        <div style="border: 2px solid #17a2b8; border-radius: 8px; padding: 15px; background: #f8f9fa;">
+                            <h6 style="color: #17a2b8; font-size: 14px; margin-bottom: 8px;">📊 Período</h6>
+                            <p style="font-size: 16px; margin: 0;">${informe.periodo}</p>
+                        </div>
+                        <div style="border: 2px solid #28a745; border-radius: 8px; padding: 15px; background: #f8f9fa;">
+                            <h6 style="color: #28a745; font-size: 14px; margin-bottom: 8px;">📅 Fecha Inicio</h6>
+                            <p style="font-size: 16px; margin: 0;">${informe.fecha_inicio}</p>
+                        </div>
+                        <div style="border: 2px solid #dc3545; border-radius: 8px; padding: 15px; background: #f8f9fa;">
+                            <h6 style="color: #dc3545; font-size: 14px; margin-bottom: 8px;">📅 Fecha Fin</h6>
+                            <p style="font-size: 16px; margin: 0;">${informe.fecha_fin}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr style="border: 1px solid #dee2e6; margin: 30px 0;">
+                
+                <h3 style="color: #007bff; font-size: 20px; margin-bottom: 20px;">💧 Datos del Flujómetro</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 30px;">
+                    <div style="background: #e7f3ff; border-radius: 8px; padding: 20px; text-align: center;">
+                        <div style="font-size: 40px; margin-bottom: 10px;">🌊</div>
+                        <h6 style="color: #666; font-size: 12px; margin-bottom: 8px;">FLUJO INSTANTÁNEO</h6>
+                        <h3 style="color: #007bff; font-size: 28px; margin: 5px 0;">${informe.datos.flujo_instantaneo.toFixed(2)}</h3>
+                        <small style="color: #666;">L/min</small>
+                    </div>
+                    <div style="background: #d4edda; border-radius: 8px; padding: 20px; text-align: center;">
+                        <div style="font-size: 40px; margin-bottom: 10px;">💧</div>
+                        <h6 style="color: #666; font-size: 12px; margin-bottom: 8px;">FLUJO ACUMULADO</h6>
+                        <h3 style="color: #28a745; font-size: 28px; margin: 5px 0;">${informe.datos.flujo_acumulado.toFixed(2)}</h3>
+                        <small style="color: #666;">Litros</small>
+                    </div>
+                    <div style="background: #fff3cd; border-radius: 8px; padding: 20px; text-align: center;">
+                        <div style="font-size: 40px; margin-bottom: 10px;">📈</div>
+                        <h6 style="color: #666; font-size: 12px; margin-bottom: 8px;">PROMEDIO DIARIO</h6>
+                        <h3 style="color: #ffc107; font-size: 28px; margin: 5px 0;">${informe.datos.promedio_diario.toFixed(2)}</h3>
+                        <small style="color: #666;">Litros/día</small>
+                    </div>
+                </div>
+                
+                <hr style="border: 1px solid #dee2e6; margin: 30px 0;">
+                
+                <h3 style="color: #28a745; font-size: 20px; margin-bottom: 20px;">📊 Estadísticas</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px;">
+                    <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; display: flex; align-items: center; gap: 15px;">
+                        <div style="font-size: 50px;">🪣</div>
+                        <div>
+                            <h6 style="color: #666; font-size: 12px; margin-bottom: 5px;">TOTAL DE LITROS</h6>
+                            <h4 style="color: #007bff; font-size: 24px; margin: 0;">${informe.estadisticas.total_litros.toFixed(2)} L</h4>
+                        </div>
+                    </div>
+                    <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; display: flex; align-items: center; gap: 15px;">
+                        <div style="font-size: 50px;">⏱️</div>
+                        <div>
+                            <h6 style="color: #666; font-size: 12px; margin-bottom: 5px;">PROMEDIO L/MIN</h6>
+                            <h4 style="color: #28a745; font-size: 24px; margin: 0;">${informe.estadisticas.promedio_lmin.toFixed(2)} L/min</h4>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #e9ecef; text-align: center; font-size: 11px; color: #6c757d;">
+                    <p style="margin: 5px 0;">Zaino Web - Sistema de Monitoreo de Caudal</p>
+                    <p style="margin: 5px 0;">Instituto Profesional AIEP</p>
+                    <p style="margin: 5px 0;">© ${new Date().getFullYear()} - Documento generado automáticamente</p>
+                </div>
+            `;
+            
+            document.body.appendChild(tempContainer);
+            
+            // Generar canvas
+            const canvas = await html2canvas(tempContainer, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+            
+            document.body.removeChild(tempContainer);
+            
+            // Crear PDF
+            const { jsPDF } = window.jspdf;
+            const imgData = canvas.toDataURL('image/png');
+            
+            const imgWidth = 210;
+            const pageHeight = 297;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            let heightLeft = imgHeight;
+            let position = 0;
+            
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+            
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+            
+            const filename = `${informeId}.pdf`;
+            pdf.save(filename);
+            
+            showToast('✅ PDF exportado exitosamente', 'success');
+        } else {
+            showToast('❌ Error al cargar informe', 'error');
+        }
+    } catch (error) {
+        console.error('Error al exportar PDF:', error);
+        showToast('❌ Error al generar PDF. Intente nuevamente.', 'error');
+    }
+}
+
+// Función para mostrar notificaciones toast
+function showToast(message, type = 'info') {
+    // Crear contenedor de toasts si no existe
+    if (!document.getElementById('toast-container')) {
+        const toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('toast-container').insertAdjacentHTML('beforeend', toastHTML);
+    
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
+    toast.show();
+    
+    // Eliminar el toast después de que se oculte
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+// Función para mostrar modal de error con información del informe existente
+function showErrorModal(title, message, informeExistente) {
+    // Crear el modal si no existe
+    if (!document.getElementById('errorInformeModal')) {
+        const modalHTML = `
+            <div class="modal fade" id="errorInformeModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning text-dark">
+                            <h5 class="modal-title" id="errorInformeTitulo">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                <span id="errorInformeTituloTexto"></span>
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-warning mb-3">
+                                <p id="errorInformeMensaje" class="mb-0"></p>
+                            </div>
+                            <div id="errorInformeDetalles"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                            <button type="button" class="btn btn-primary" id="btnVerInformeExistente">
+                                <i class="bi bi-eye"></i> Ver Informe Actual
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+    }
+    
+    // Actualizar contenido
+    document.getElementById('errorInformeTituloTexto').textContent = title;
+    document.getElementById('errorInformeMensaje').textContent = message;
+    
+    if (informeExistente) {
+        document.getElementById('errorInformeDetalles').innerHTML = `
+            <h6 class="mb-3">Informe disponible:</h6>
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">${informeExistente.nombre}</h6>
+                    <p class="card-text">
+                        <i class="bi bi-calendar3"></i> Generado el: <strong>${informeExistente.fecha}</strong>
+                    </p>
+                    <p class="text-muted mb-0">
+                        <small>Puede ver o descargar este informe en la lista.</small>
+                    </p>
+                </div>
+            </div>
+        `;
+        
+        // Configurar botón para ver el informe
+        const btnVer = document.getElementById('btnVerInformeExistente');
+        btnVer.onclick = function() {
+            bootstrap.Modal.getInstance(document.getElementById('errorInformeModal')).hide();
+            viewReport(informeExistente.id);
+        };
+    } else {
+        document.getElementById('errorInformeDetalles').innerHTML = '';
+        document.getElementById('btnVerInformeExistente').style.display = 'none';
+    }
+    
+    // Mostrar el modal
+    const modal = new bootstrap.Modal(document.getElementById('errorInformeModal'));
+    modal.show();
 }
 
 // Inicialización cuando el documento está listo
