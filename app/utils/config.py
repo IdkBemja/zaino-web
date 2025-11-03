@@ -38,6 +38,9 @@ def load_config():
     
     return config
 
+def get_port():
+    load_dotenv()
+    return int(os.getenv("PORT", 5000))
 
 def incrementar_visitas():
     visitas_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../visitas.json')
