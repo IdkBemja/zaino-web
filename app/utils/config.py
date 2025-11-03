@@ -6,6 +6,15 @@ from dotenv import load_dotenv
 def load_config():
 
     load_dotenv()
+    
+    # Generar SECRET_KEY si no existe en .env
+    secret_key = os.getenv("SECRET_KEY")
+    if not secret_key:
+        # Generar una clave aleatoria de 24 bytes
+        secret_key = os.urandom(24).hex()
+        print("⚠️ WARNING: SECRET_KEY no encontrada en .env. Generando una aleatoria.")
+        print(f"   Para producción, agrega esta línea a tu .env: SECRET_KEY={secret_key}")
+    
     # Manejar el contador de visitas
     visitas_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../visitas.json')
     visitas_path = os.path.normpath(visitas_path)
@@ -18,6 +27,7 @@ def load_config():
         visitas = json.load(f)
 
     config = {
+        "SECRET_KEY": secret_key,
         "CLIENT_ID": os.getenv("CLIENT_ID"),
         "CLIENT_SECRET": os.getenv("CLIENT_SECRET"),
         "WEATHERCLOUD_EMAIL": os.getenv("WEATHERCLOUD_EMAIL"),

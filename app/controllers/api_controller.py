@@ -5,8 +5,29 @@ import requests
 from app.utils import config
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
+from datetime import datetime, timedelta
 
 settings = config.load_config()
+
+# Cache para reducir llamadas a la API de Arduino
+flowmeter_cache = {
+    'data': None,
+    'timestamp': None,
+    'ttl': 8  # Time to live en segundos (8 segundos de caché)
+}
+
+def get_cached_flowmeter_data():
+    """Retorna datos en caché si son válidos, None si no"""
+    if flowmeter_cache['data'] and flowmeter_cache['timestamp']:
+        elapsed = (datetime.now() - flowmeter_cache['timestamp']).total_seconds()
+        if elapsed < flowmeter_cache['ttl']:
+            return flowmeter_cache['data']
+    return None
+
+def set_flowmeter_cache(data):
+    """Guarda datos en caché"""
+    flowmeter_cache['data'] = data
+    flowmeter_cache['timestamp'] = datetime.now()
 
 def get_arduino_token():
     """Obtiene un token de acceso para la API de Arduino IoT Cloud"""
@@ -42,58 +63,127 @@ def get_arduino_token():
     except Exception as e:
         return None, f"Error de autenticación: {str(e)}"
 
-
-@app.route("/api/test-api", methods=['GET'])
-def test_api():
-    """Endpoint para probar la conexión con la API de Arduino IoT Cloud"""
+@app.route("/api/arduino/flowmeter", methods=['GET'])
+def get_flowmeter_data():
+    """Obtiene los datos del flujómetro desde Arduino IoT Cloud con caché"""
     try:
+        # Verificar si hay datos en caché válidos
+        cached_data = get_cached_flowmeter_data()
+        if cached_data:
+            return jsonify({
+                "success": True,
+                "data": cached_data,
+                "cached": True
+            }), 200
         access_token, error = get_arduino_token()
 
         if error:
             return jsonify({
                 "error": "Error de autenticación",
-                "details": error,
-                "config_status": {
-                    "client_id_present": bool(settings.get('CLIENT_ID')),
-                    "client_secret_present": bool(settings.get('CLIENT_SECRET'))
-                }
+                "details": error
             }), 401
-        
+
+        # Obtener todos los things
         api_url = "https://api2.arduino.cc/iot/v2/things"
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Content-Type': 'application/json'
         }
 
-        try:
-            # Hacer la petición GET directamente
-            response = requests.get(api_url, headers=headers)
-            
-            if response.status_code == 200:
-                things_data = response.json()
-                print(f"Consulta exitosa - {len(things_data)} things encontrados")
-                print(things_data)
-
+        response = requests.get(api_url, headers=headers)
+        
+        # Manejar rate limiting
+        if response.status_code == 429:
+            # Si hay datos en caché aunque sean viejos, usarlos
+            if flowmeter_cache['data']:
                 return jsonify({
                     "success": True,
-                    "message": "Conexión exitosa con Arduino IoT API",
-                    "data": things_data
+                    "data": flowmeter_cache['data'],
+                    "cached": True,
+                    "warning": "Rate limit alcanzado, usando datos en caché"
                 }), 200
-            else:
-                return jsonify({
-                    "error": "Error en la API de Arduino",
-                    "status_code": response.status_code,
-                    "details": response.text
-                }), response.status_code
-
-        except requests.exceptions.RequestException as e:
             return jsonify({
-                "error": "Error en la petición HTTP",
-                "details": str(e)
-            }), 500
+                "error": "Rate limit alcanzado",
+                "details": "Demasiadas peticiones. Intenta de nuevo en unos segundos."
+            }), 429
+        
+        if response.status_code != 200:
+            return jsonify({
+                "error": "Error al obtener things",
+                "status_code": response.status_code,
+                "details": response.text
+            }), response.status_code
+
+        things_data = response.json()
+        
+        # Buscar el thing llamado "Medidor de Flujo"
+        flowmeter_thing = None
+        for thing in things_data:
+            if thing.get('name') == 'Medidor de Flujo':
+                flowmeter_thing = thing
+                break
+        
+        if not flowmeter_thing:
+            return jsonify({
+                "error": "No se encontró el thing 'Medidor de Flujo'",
+                "available_things": [t.get('name') for t in things_data]
+            }), 404
+
+        # Obtener las propiedades del thing
+        thing_id = flowmeter_thing.get('id')
+        properties_url = f"https://api2.arduino.cc/iot/v2/things/{thing_id}/properties"
+        
+        properties_response = requests.get(properties_url, headers=headers)
+        
+        if properties_response.status_code != 200:
+            return jsonify({
+                "error": "Error al obtener propiedades",
+                "status_code": properties_response.status_code
+            }), properties_response.status_code
+
+        properties = properties_response.json()
+        
+        # Extraer instflow y constflow
+        flowmeter_data = {
+            "thing_name": flowmeter_thing.get('name'),
+            "thing_id": thing_id,
+            "instflow": None,
+            "constflow": None,
+            "last_update": None
+        }
+        
+        for prop in properties:
+            prop_name = prop.get('name', '').lower()
+            if 'instflow' in prop_name:
+                flowmeter_data['instflow'] = {
+                    "value": prop.get('last_value'),
+                    "updated_at": prop.get('value_updated_at')
+                }
+            elif 'constflow' in prop_name:
+                flowmeter_data['constflow'] = {
+                    "value": prop.get('last_value'),
+                    "updated_at": prop.get('value_updated_at')
+                }
+        
+        # Guardar en caché
+        set_flowmeter_cache(flowmeter_data)
+        
+        return jsonify({
+            "success": True,
+            "data": flowmeter_data,
+            "cached": False
+        }), 200
 
     except Exception as e:
         print(f"\nError inesperado: {e}")
+        # En caso de error, intentar usar caché aunque sea viejo
+        if flowmeter_cache['data']:
+            return jsonify({
+                "success": True,
+                "data": flowmeter_cache['data'],
+                "cached": True,
+                "warning": "Error en la API, usando datos en caché"
+            }), 200
         return jsonify({
             "error": "Error inesperado",
             "details": str(e)
