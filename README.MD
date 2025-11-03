@@ -177,6 +177,9 @@ WEATHERCLOUD_DEVICEID=ID_DE_TU_ESTACION
 # Flask Security - Clave secreta (IMPORTANTE EN PRODUCCIÓN)
 # Genera una con: python -c "import os; print(os.urandom(24).hex())"
 SECRET_KEY=tu_clave_secreta_aleatoria_aqui
+
+# Flask Port - Puerto donde se ejecutará la aplicación (IMPORTANTE SI SE USA DOCKER)
+PORT=5000 # Cambiar en caso de ser necesario
 ```
 
 > **Nota de Seguridad**: Si no especificas una `SECRET_KEY`, la aplicación generará una aleatoria automáticamente. Sin embargo, esto hará que las sesiones se invaliden cada vez que reinicies el servidor. Para producción, **siempre configura una SECRET_KEY fija**.
