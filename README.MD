@@ -274,8 +274,8 @@ La aplicación estará disponible en: `http://localhost:5000`
 ## 🌐 Despliegue
 
 ### URL Oficial
-🔗 **Producción**: [https://example.com](https://example.com)  
-🔗 **Demo**: [https://demo.example.com](https://demo.example.com)
+🔗 **Producción**: [https://aguaconecta.cl](https://aguaconecta.cl)  
+🔗 **Demo**: [https://aguaconecta.urrahost.app](https://aguaconecta.urrahost.app)
 
 ### Despliegue en Producción
 
@@ -485,8 +485,8 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 
 Para preguntas, sugerencias o reportar problemas:
 
-- **Issues**: [GitHub Issues](https://github.com/tu-usuario/zaino-web/issues)
-- **Email**: contacto@example.com
+- **Issues**: [GitHub Issues](https://github.com/IdkBemja/zaino-web/issues)
+- **Email**: contact@urrahost.app (Asunto: "Sugerencia/Pregunta/Problemas Zaino Web")
 
 ---
 
