@@ -489,7 +489,7 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 Para preguntas, sugerencias o reportar problemas:
 
 - **Issues**: [GitHub Issues](https://github.com/IdkBemja/zaino-web/issues)
-- **Email**: contact@urrahost.app (Asunto: "Sugerencia/Pregunta/Problemas Zaino Web")
+- **Email**: contact@urrahosting.cl (Asunto: "Sugerencia/Pregunta/Problemas Zaino Web")
 
 ---
 
